@@ -13,22 +13,11 @@ function computePrecomputedVal(::Type{UTI}, obs::AbstractObs, beta::AbstractVect
     return uti / s
 
 end
-
-@doc raw"""
-    logit(beta::AbstractVector{T}, obs::AbstractObs, Type{UTI}, precomputedValues::AbstractVector{T})
-
-Returns the log-likelihood of the model on this observation.
-"""
 function logit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}; 
         precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::T where {T, UTI}
     return log(precomputedValues[choice(obs)])  
 end
 
-"""
-    gradlogit(beta::AbstractVector{T}, obs::AbstractObs, Type{UTI}, precomputedValues::AbstractVector{T})
-
-
-"""
 function gradientLogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
         precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, UTI}
     n = length(beta)

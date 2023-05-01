@@ -44,16 +44,6 @@ function NLPModels.grad!(mo::LogitModel{D, L, UTI}, beta::Vector{T}, ac::Array{T
     end
     return ac
 end
-
-"""
-    H!(mo, beta, ac; sample)
-
-# Arguments
-- `beta::Vector{T}` is the parameter vector
-- `mo::LogitModel{UPD, D}` is the Logit modelwhere data is stored
-- `ac::Array{T, 2}` is the accumulator vector to modify in place
-- `sample = 1:length(mo.data)` is the sampled population used for computation, by default full.
-"""
 function NLPModels.hess(mo::LogitModel{D, L, UTI}, beta::Vector{T};
         sample = 1:length(mo.data), obj_weight::Float64 = 1.0, BHHH::Bool = false) where {T, D, L, UTI}
     n = length(beta)
