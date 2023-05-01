@@ -6,12 +6,11 @@ Returns an array containing the probabilities associated to every alternative.
 function computePrecomputedVal(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T})::Array{T, 1} where {T, UTI}
     # compute utility value for all alternative
     uti = computeUtilities(UTI, obs, beta)
-    # re-write in the form utility - utility_max
     uti .-= maximum(uti)
     # compute exp(utilities)
     map!(exp, uti , uti)
     s = sum(uti)
-    return uti / s # retrun probability in the form exp(uti)/sum(exp(uti))
+    return uti / s
 
 end
 
@@ -20,8 +19,9 @@ end
 
 Returns the log-likelihood of the model on this observation.
 """
-function logit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}; precomputedValues::AbstractVector{T})::T where {T, UTI}
-    return log(precomputedValues[choice(obs)])  # / sum(precomputedValues)) -- the sum of the precomputed values is already 1
+function logit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}; 
+        precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::T where {T, UTI}
+    return log(precomputedValues[choice(obs)])  
 end
 
 """
@@ -29,52 +29,70 @@ end
 
 
 """
-function gradlogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
-        precomputedValues::AbstractVector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, UTI}
+function gradientLogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
+        precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, UTI}
     n = length(beta)
     g = Array{T, 1}(undef, n)
-    g[:] = grad(UTI, obs, beta, choice(obs))
+    g[:] = gradient(UTI, obs, beta, choice(obs))
     for k in 1:length(precomputedValues)
-        g[:] -= precomputedValues[k] * grad(UTI, obs, beta, k)
-
+        g[:] -= precomputedValues[k] * gradient(UTI, obs, beta, k)
     end
     return g
 end
-
-function Hessianlogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
-        precomputedValues::AbstractVector{T} = computePrecomputedVal(UTI, obs, beta))::Matrix{T} where {T, L, UTI <: AbstractLogitUtility{L}}
-    
-    hasnonlinearutility = (Int(L) == 1)
+#Case with linear utility
+function hessianLogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
+        precomputedValues::AbstractVector{T} = computePrecomputedVal(UTI, obs, beta))::Matrix{T} where {T, UTI <: AbstractLogitUtility{Linear}}
     dim = length(beta)
-    nalt = length(precomputedValues)
+    numberOfAlternatives = nalt(obs)
     H = zeros(T, dim, dim)
-    hasnonlinearutility && (H[:, :] = hess(UTI, obs, beta, choice(obs)))
-
-    gradS = sum(precomputedValues[k] * grad(UTI, obs, beta, k) for k in 1:nalt)
+    gradS = sum(precomputedValues[k] * gradient(UTI, obs, beta, k) for k in 1:numberOfAlternatives)
     H[:, :]  += gradS * gradS'
-    for k in 1:nalt
-        H[:, :] -= precomputedValues[k] * grad(UTI, obs, beta, k) * grad(UTI, obs, beta, k)'
-        hasnonlinearutility && (H[:, :] -= precomputedValues[k] * hess(UTI, obs, beta, k))
+    for k in 1:numberOfAlternatives
+        H[:, :] -= precomputedValues[k] * gradient(UTI, obs, beta, k) * gradient(UTI, obs, beta, k)'
     end
     return H
 end
-
-function Hessianlogitdotv(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}, v::Vector; 
-        precomputedValues::AbstractVector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, L, UTI <: AbstractLogitUtility{L}}
-    #@show size(beta)
-    #@show size(v)
-    #@show size(precomputedValues)
-    hasnonlinearutility = (Int(L) == 1)
+#Case with non-linear utility
+function hessianLogit(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T};
+        precomputedValues::AbstractVector{T} = computePrecomputedVal(UTI, obs, beta))::Matrix{T} where {T, UTI <: AbstractLogitUtility{NotLinear}}
     dim = length(beta)
-    nalt = length(precomputedValues)
-    Hv = zeros(T, dim)
-    hasnonlinearutility && (H[:] = hessdotv(UTI, obs, beta, choice(obs), v))
+    numberOfAlternatives = nalt(obs)
+    H = zeros(T, dim, dim)
+    H[:, :] = hessian(UTI, obs, beta, choice(obs))
 
-    gradS = sum(precomputedValues[k] * grad(UTI, obs, beta, k) for k in 1:nalt)
+    gradS = sum(precomputedValues[k] * gradient(UTI, obs, beta, k) for k in 1:numberOfAlternatives)
+    H[:, :]  += gradS * gradS'
+    for k in 1:numberOfAlternatives
+        H[:, :] -= precomputedValues[k] * gradient(UTI, obs, beta, k) * gradient(UTI, obs, beta, k)'
+        H[:, :] -= precomputedValues[k] * hessian(UTI, obs, beta, k)
+    end
+    return H
+end
+#case with linear utility
+function hessianLogitdotv(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}, v::Vector; 
+        precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, L, UTI <: AbstractLogitUtility{Linear}}
+    dim = length(beta)
+    numberOfAlternatives = nalt(obs)
+    Hv = zeros(T, dim)
+    gradS = sum(precomputedValues[k] * gradient(UTI, obs, beta, k) for k in 1:numberOfAlternatives)
     Hv[:]  += gradS * dot(gradS, v)
-    for k in 1:nalt
-        Hv[:] -= precomputedValues[k] * grad(UTI, obs, beta, k) * dot(grad(UTI, obs, beta, k), v)
-        hasnonlinearutility && (Hv[:] -= precomputedValues[k] * hessdotv(UTI, obs, beta, k, v))
+    for k in 1:numberOfAlternatives
+        Hv[:] -= precomputedValues[k] * gradient(UTI, obs, beta, k) * dot(gradient(UTI, obs, beta, k), v)
+    end
+    return Hv
+end
+#case with nonlinearutility
+function hessianLogitdotv(::Type{UTI}, obs::AbstractObs, beta::AbstractVector{T}, v::Vector; 
+        precomputedValues::Vector{T} = computePrecomputedVal(UTI, obs, beta))::Vector{T} where {T, L, UTI <: AbstractLogitUtility{NotLinear}}
+    dim = length(beta)
+    numberOfAlternatives = nalt(obs)
+    Hv = zeros(T, dim)
+    H[:] = hessdotv(UTI, obs, beta, choice(obs), v)
+    gradS = sum(precomputedValues[k] * gradient(UTI, obs, beta, k) for k in 1:numberOfAlternatives)
+    Hv[:]  += gradS * dot(gradS, v)
+    for k in 1:numberOfAlternatives
+        Hv[:] -= precomputedValues[k] * gradient(UTI, obs, beta, k) * dot(gradient(UTI, obs, beta, k), v)
+        Hv[:] -= precomputedValues[k] * hessdotv(UTI, obs, beta, k, v)
     end
     return Hv
 end

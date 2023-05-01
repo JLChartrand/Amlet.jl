@@ -18,7 +18,7 @@ end
 
 Returns
 """
-function getindex(lI::LinedObs, index::Int)
+function getindex(lI::LinedObs, index::Integer)
     data = @view lI.data[:, index]
     return ObsAsVector(data, lI.nalt)
 end
@@ -31,14 +31,28 @@ Returns munber of individuals.
 function length(l::LinedObs)
     return size(l.data, 2)
 end
+"""
+    nobs(l::LinedObs)
+
+Returns the number of obserbation in the data-set
+"""
 function nobs(l::LinedObs)
     return length(l)
 end
+"""
+    nalt(l::LinedObs)
+
+Returns the number alternatives that faces each obserbation in the data-set
+"""
 function nalt(l::LinedObs)
     return l.nalt
 end
+"""
+    explanatoryLength(l::LinedObs)
 
-function explanatorylength(l::LinedObs)
+return the length of the explanatory variables of each alternatives
+"""
+function explanatoryLength(l::LinedObs)
     n = size(l.data, 1)
     return div(n, l.nalt)
 end

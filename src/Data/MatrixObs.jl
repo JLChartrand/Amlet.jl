@@ -28,10 +28,10 @@ end
 
 Returns number of individuals.
 """
-function Base.length(l::MatrixObs)
+function length(l::MatrixObs)
     return size(l.data, 1)
 end
-function ENLPModels.nobs(l::MatrixObs)
+function nobs(l::MatrixObs)
     return length(l.data, 2)
 end
 """
@@ -48,7 +48,7 @@ end
 
 Returns the dimension of the attribute vectors, i.e. ``p``.
 """
-function dim(l::MatrixObs)
+function explanatoryLength(l::MatrixObs)
     n = size(l.data, 1)
     return div(n, l.nalt)
 end
